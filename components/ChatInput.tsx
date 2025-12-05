@@ -68,7 +68,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading }) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="问问 Gemini"
+            placeholder="请输入..."
             className="w-full max-h-[200px] bg-transparent border-0 focus:ring-0 resize-none py-4 pl-6 pr-14 text-gray-900 placeholder-gray-500 scrollbar-hide outline-none text-[16px]"
             disabled={isLoading}
           />
