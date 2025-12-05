@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Square, Sparkles, Search } from 'lucide-react';
 
@@ -68,7 +67,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading }) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="问问 Gemini"
+            placeholder="请输入..."
             className="w-full max-h-[200px] bg-transparent border-0 focus:ring-0 resize-none py-4 pl-6 pr-14 text-gray-900 placeholder-gray-500 scrollbar-hide outline-none text-[16px]"
             disabled={isLoading}
           />
@@ -121,7 +120,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading }) => {
         </div>
         
         <div className="text-center">
-           <span className="text-[10px] text-gray-400">Gemini 可能会显示不准确的信息，包括有关人物的信息，因此请核查其给出的回答。</span>
+           <span className="text-[10px] text-gray-400">内容由AI生成，请核查其给出的回答。</span>
         </div>
       </div>
     </div>
