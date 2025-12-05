@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Menu } from 'lucide-react';
@@ -91,7 +92,7 @@ const App: React.FC = () => {
     }));
   };
 
-  const handleSend = async (text: string, enableOriginExplanation: boolean) => {
+  const handleSend = async (text: string, enableSemanticThinking: boolean, enableRag: boolean) => {
     if (!currentSessionId) return;
 
     const userMessage: Message = {
@@ -122,7 +123,11 @@ const App: React.FC = () => {
     let accumulatedText = '';
 
     await streamChatResponse(
-        { text, enable_origin_explanation: enableOriginExplanation },
+        { 
+          text, 
+          enable_semantic_thinking: enableSemanticThinking,
+          enable_rag: enableRag 
+        },
         config,
         (chunk) => {
             accumulatedText += chunk;
@@ -211,14 +216,14 @@ const App: React.FC = () => {
              <div className="w-6"></div> {/* Spacer */}
         </div>
 
-        <div className="flex-1 overflow-y-auto scrollbar-thin pb-40">
+        <div className="flex-1 overflow-y-auto scrollbar-thin pb-48">
            {currentSession?.messages.length === 0 ? (
                <div className="h-full flex flex-col items-center justify-center text-center px-4 opacity-70 select-none">
                     <div className="bg-gray-100 p-4 rounded-full mb-4 text-gray-400">
                         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
                     </div>
                     <h2 className="text-2xl font-bold mb-2 text-gray-900">九鼎IT大模型语义层</h2>
-                    <p className="text-sm text-gray-500">开启“进一步解释”以获取详细来源。</p>
+                    <p className="text-sm text-gray-500">开启“深度思考语义”以获取详细推导过程。</p>
                </div>
            ) : (
                <div className="flex flex-col pt-4">

@@ -1,14 +1,18 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Square } from 'lucide-react';
+import { Send, Square, Sparkles, Search } from 'lucide-react';
 
 interface ChatInputProps {
-  onSend: (text: string, enableOriginExplanation: boolean) => void;
+  onSend: (text: string, enableSemanticThinking: boolean, enableRag: boolean) => void;
   isLoading: boolean;
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading }) => {
   const [input, setInput] = useState('');
-  const [enableExplanation, setEnableExplanation] = useState(false);
+  // States for the two mutually exclusive modes
+  const [enableThinking, setEnableThinking] = useState(false);
+  const [enableRag, setEnableRag] = useState(false);
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize textarea
@@ -21,7 +25,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading }) => {
 
   const handleSubmit = () => {
     if (!input.trim() || isLoading) return;
-    onSend(input, enableExplanation);
+    onSend(input, enableThinking, enableRag);
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
@@ -33,55 +37,91 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading }) => {
     }
   };
 
-  return (
-    <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-white via-white to-transparent pt-10 pb-6 px-4">
-      <div className="md:max-w-3xl lg:max-w-[40rem] xl:max-w-[48rem] mx-auto w-full">
-        
-        {/* Controls Bar */}
-        <div className="flex justify-between items-center mb-2 px-2">
-             <label className="flex items-center gap-2 cursor-pointer group">
-                <div className="relative">
-                    <input 
-                        type="checkbox" 
-                        className="sr-only peer"
-                        checked={enableExplanation}
-                        onChange={(e) => setEnableExplanation(e.target.checked)}
-                        disabled={isLoading}
-                    />
-                    <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
-                </div>
-                <span className={`text-xs font-medium ${enableExplanation ? 'text-emerald-600' : 'text-gray-500'} group-hover:text-gray-800 transition-colors`}>
-                    进一步解释
-                </span>
-            </label>
-        </div>
+  // Mutually exclusive toggle logic
+  const toggleThinking = () => {
+    if (!enableThinking) {
+        setEnableThinking(true);
+        setEnableRag(false);
+    } else {
+        setEnableThinking(false);
+    }
+  };
 
-        {/* Input Box */}
-        <div className="relative flex items-end w-full p-3 bg-white rounded-xl border border-gray-300 shadow-lg focus-within:border-gray-400 focus-within:shadow-xl transition-all">
+  const toggleRag = () => {
+    if (!enableRag) {
+        setEnableRag(true);
+        setEnableThinking(false);
+    } else {
+        setEnableRag(false);
+    }
+  };
+
+  return (
+    <div className="absolute bottom-0 left-0 w-full bg-white pt-2 pb-6 px-4 z-20">
+      <div className="md:max-w-3xl lg:max-w-[40rem] xl:max-w-[48rem] mx-auto w-full flex flex-col gap-3">
+        
+        {/* Input Box - Gemini Style (Rounded Gray Pill/Card) */}
+        <div className="relative flex flex-col w-full bg-[#f0f4f9] rounded-[2rem] hover:bg-[#e9eef6] focus-within:bg-[#e9eef6] focus-within:shadow-sm transition-colors border border-transparent focus-within:border-gray-200">
           <textarea
             ref={textareaRef}
             rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入消息..."
-            className="w-full max-h-[200px] bg-transparent border-0 focus:ring-0 resize-none py-3 pr-10 text-gray-900 placeholder-gray-400 scrollbar-hide outline-none"
+            placeholder="问问 Gemini"
+            className="w-full max-h-[200px] bg-transparent border-0 focus:ring-0 resize-none py-4 pl-6 pr-14 text-gray-900 placeholder-gray-500 scrollbar-hide outline-none text-[16px]"
             disabled={isLoading}
           />
-          <button
-            onClick={handleSubmit}
-            disabled={!input.trim() && !isLoading}
-            className={`absolute right-3 bottom-3 p-2 rounded-lg transition-colors ${
-              input.trim() || isLoading
-                ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            {isLoading ? <Square size={16} className="animate-pulse" fill="currentColor" /> : <Send size={16} />}
-          </button>
+          
+          {/* Send Button inside Input */}
+          <div className="absolute right-2 bottom-2">
+            <button
+                onClick={handleSubmit}
+                disabled={!input.trim() && !isLoading}
+                className={`p-2 rounded-full transition-all flex items-center justify-center ${
+                input.trim() || isLoading
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'
+                    : 'bg-transparent text-gray-400 cursor-not-allowed'
+                }`}
+            >
+                {isLoading ? <Square size={18} className="animate-pulse" fill="currentColor" /> : <Send size={18} />}
+            </button>
+          </div>
         </div>
-        <div className="text-center pt-2">
-           <span className="text-xs text-gray-400">模型可能会犯错，请核查重要信息。</span>
+
+        {/* Feature Toggles (Pills below input) */}
+        <div className="flex items-center gap-3 px-2 overflow-x-auto scrollbar-hide">
+            {/* Deep Semantic Thinking Toggle */}
+            <button
+                onClick={toggleThinking}
+                disabled={isLoading}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all border select-none whitespace-nowrap ${
+                    enableThinking 
+                    ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' 
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+            >
+                <Sparkles size={16} className={enableThinking ? "fill-blue-200" : ""} />
+                深度思考语义
+            </button>
+
+            {/* RAG Search Toggle */}
+            <button
+                onClick={toggleRag}
+                disabled={isLoading}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all border select-none whitespace-nowrap ${
+                    enableRag
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm' 
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+            >
+                <Search size={16} />
+                RAG 检索
+            </button>
+        </div>
+        
+        <div className="text-center">
+           <span className="text-[10px] text-gray-400">Gemini 可能会显示不准确的信息，包括有关人物的信息，因此请核查其给出的回答。</span>
         </div>
       </div>
     </div>

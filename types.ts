@@ -1,3 +1,4 @@
+
 export enum Role {
   User = 'user',
   Assistant = 'assistant',
@@ -21,7 +22,8 @@ export interface ChatSession {
 
 export interface ApiRequestPayload {
   text: string;
-  enable_origin_explanation: boolean;
+  enable_semantic_thinking: boolean;
+  enable_rag: boolean;
 }
 
 // Configuration for the backend connection
