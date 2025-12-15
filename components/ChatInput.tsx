@@ -101,7 +101,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading }) => {
                 }`}
             >
                 <Sparkles size={16} className={enableThinking ? "fill-blue-200" : ""} />
-                深度思考语义
+                语义规范
             </button>
 
             {/* RAG Search Toggle */}
@@ -115,7 +115,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading }) => {
                 }`}
             >
                 <Search size={16} />
-                RAG 检索
+                知识库问答
             </button>
         </div>
         

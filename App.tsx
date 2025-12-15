@@ -18,7 +18,7 @@ const App: React.FC = () => {
   // Configuration State
   const [config, setConfig] = useState<AppConfig>({
     useCustomBackend: true,
-    backendUrl: 'http://10.17.49.217:28001/v1/semantic/query',
+    backendUrl: 'http://10.17.49.217:28001/v1/query/semantic',
     apiKey: '' // User needs to input this in settings
   });
 
