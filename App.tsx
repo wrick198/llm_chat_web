@@ -1,98 +1,82 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Menu } from 'lucide-react';
+import { Menu, MessageSquare } from 'lucide-react';
 import ChatInput from './components/ChatInput';
 import MessageBubble from './components/MessageBubble';
 import Sidebar from './components/Sidebar';
-import { Message, Role, ChatSession, AppConfig } from './types';
+import NewChatModal from './components/NewChatModal';
+import { Message, Role, ChatSession, AppConfig, InterfaceType } from './types';
 import { streamChatResponse } from './services/apiService';
 
 const App: React.FC = () => {
-  // State
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Configuration State
   const [config, setConfig] = useState<AppConfig>({
     useCustomBackend: true,
-    backendUrl: 'http://10.17.49.217:28001/v1/query/semantic',
-    apiKey: '' // User needs to input this in settings
+    backendUrl: '', // Will be overridden by session-specific URL
+    apiKey: '' 
   });
 
-  // Initialize new chat on mount if none exists
   useEffect(() => {
-    const savedSessions = localStorage.getItem('chat_sessions');
-    const savedConfig = localStorage.getItem('chat_config');
+    const savedSessions = localStorage.getItem('chat_sessions_v2');
+    const savedConfig = localStorage.getItem('chat_config_v2');
     
-    if (savedConfig) {
-        setConfig(JSON.parse(savedConfig));
-    }
+    if (savedConfig) setConfig(JSON.parse(savedConfig));
 
     if (savedSessions) {
       const parsed = JSON.parse(savedSessions);
       setSessions(parsed);
-      if (parsed.length > 0) {
-        setCurrentSessionId(parsed[0].id);
-      } else {
-        createNewChat();
-      }
-    } else {
-      createNewChat();
+      if (parsed.length > 0) setCurrentSessionId(parsed[0].id);
     }
   }, []);
 
-  // Save to local storage whenever sessions change
   useEffect(() => {
-    if(sessions.length > 0) {
-        localStorage.setItem('chat_sessions', JSON.stringify(sessions));
-    }
-    localStorage.setItem('chat_config', JSON.stringify(config));
+    localStorage.setItem('chat_sessions_v2', JSON.stringify(sessions));
+    localStorage.setItem('chat_config_v2', JSON.stringify(config));
   }, [sessions, config]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [sessions, currentSessionId]);
 
-  const createNewChat = () => {
+  const handleCreateNewChat = (type: InterfaceType, url: string, name: string) => {
     const newSession: ChatSession = {
       id: uuidv4(),
-      title: '新对话',
+      title: `${name} 对话`,
       messages: [],
       updatedAt: Date.now(),
+      interfaceType: type,
+      backendUrl: url
     };
     setSessions(prev => [newSession, ...prev]);
     setCurrentSessionId(newSession.id);
-    return newSession.id;
+    setShowNewChatModal(false);
+  };
+
+  const updateSessionTitle = (id: string, newTitle: string) => {
+    setSessions(prev => prev.map(s => s.id === id ? { ...s, title: newTitle } : s));
   };
 
   const getCurrentSession = () => sessions.find(s => s.id === currentSessionId);
 
-  const updateCurrentSessionMessages = (newMessages: Message[]) => {
+  const updateMessages = (newMessages: Message[]) => {
     setSessions(prev => prev.map(session => {
       if (session.id === currentSessionId) {
-        // Update title based on first message if it's generic
-        let title = session.title;
-        if ((session.title === 'New Chat' || session.title === '新对话') && newMessages.length > 0) {
-            const firstUserMsg = newMessages.find(m => m.role === Role.User);
-            if(firstUserMsg) {
-                title = firstUserMsg.content.slice(0, 30) + (firstUserMsg.content.length > 30 ? '...' : '');
-            }
-        }
-        return { ...session, messages: newMessages, title, updatedAt: Date.now() };
+        return { ...session, messages: newMessages, updatedAt: Date.now() };
       }
       return session;
     }));
   };
 
-  const handleSend = async (text: string, enableSemanticThinking: boolean, enableRag: boolean) => {
-    if (!currentSessionId) return;
+  const handleSend = async (text: string, enableSemanticThinking: boolean) => {
+    const session = getCurrentSession();
+    if (!session) return;
 
     const userMessage: Message = {
       id: uuidv4(),
@@ -101,33 +85,30 @@ const App: React.FC = () => {
       timestamp: Date.now(),
     };
 
-    const currentMessages = getCurrentSession()?.messages || [];
-    const updatedMessages = [...currentMessages, userMessage];
-    
-    // Optimistic update
-    updateCurrentSessionMessages(updatedMessages);
+    const updatedMessages = [...session.messages, userMessage];
+    updateMessages(updatedMessages);
     setIsLoading(true);
 
-    // Create placeholder for AI response
     const botMessageId = uuidv4();
     const botMessage: Message = {
       id: botMessageId,
       role: Role.Assistant,
-      content: '', // Start empty
+      content: '',
       timestamp: Date.now(),
     };
 
-    updateCurrentSessionMessages([...updatedMessages, botMessage]);
+    updateMessages([...updatedMessages, botMessage]);
 
     let accumulatedText = '';
 
     await streamChatResponse(
         { 
           text, 
-          enable_semantic_thinking: enableSemanticThinking,
-          enable_rag: enableRag 
+          enable_semantic_thinking: session.interfaceType === InterfaceType.Semantic ? enableSemanticThinking : false,
+          stream: true
         },
         config,
+        session.backendUrl,
         (chunk) => {
             accumulatedText += chunk;
             setSessions(prev => prev.map(s => {
@@ -140,9 +121,7 @@ const App: React.FC = () => {
                 return s;
             }));
         },
-        () => {
-            setIsLoading(false);
-        },
+        () => setIsLoading(false),
         (errorMsg) => {
             setSessions(prev => prev.map(s => {
                 if (s.id === currentSessionId) {
@@ -158,47 +137,25 @@ const App: React.FC = () => {
     );
   };
 
-  const handleDownload = () => {
-    const session = getCurrentSession();
-    if (!session) return;
-    
-    const content = session.messages.map(m => `## ${m.role.toUpperCase()}\n\n${m.content}\n`).join('\n---\n\n');
-    const blob = new Blob([content], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${session.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const deleteChat = (id: string) => {
-    setSessions(prev => {
-        const newSessions = prev.filter(s => s.id !== id);
-        if (currentSessionId === id) {
-            setCurrentSessionId(newSessions.length > 0 ? newSessions[0].id : null);
-        }
-        return newSessions;
-    });
-    if (sessions.length <= 1) {
-        // If we deleted the last one, create a new blank one immediately after state update cycle
-        setTimeout(createNewChat, 0);
-    }
-  };
-
   const currentSession = getCurrentSession();
 
   return (
     <div className="flex h-screen w-full bg-white text-gray-900 font-sans">
+      {showNewChatModal && (
+        <NewChatModal 
+          onSelect={handleCreateNewChat} 
+          onClose={() => setShowNewChatModal(false)} 
+        />
+      )}
+
       <Sidebar
         sessions={sessions}
         currentSessionId={currentSessionId}
-        onNewChat={createNewChat}
+        onNewChatClick={() => setShowNewChatModal(true)}
         onSelectChat={setCurrentSessionId}
-        onDeleteChat={deleteChat}
-        onDownload={handleDownload}
+        onDeleteChat={(id) => setSessions(prev => prev.filter(s => s.id !== id))}
+        onUpdateTitle={updateSessionTitle}
+        onDownload={() => {}}
         config={config}
         onUpdateConfig={setConfig}
         isOpen={sidebarOpen}
@@ -206,36 +163,48 @@ const App: React.FC = () => {
       />
 
       <main className="flex-1 flex flex-col relative h-full overflow-hidden">
-        {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between p-4 border-b border-gray-200 bg-white z-10">
-             <button onClick={() => setSidebarOpen(true)} className="text-gray-600 hover:text-gray-900">
+        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white z-10">
+             <button onClick={() => setSidebarOpen(true)} className="md:hidden text-gray-600">
                 <Menu />
              </button>
-             <span className="font-semibold text-sm text-gray-800">{currentSession?.title || '新对话'}</span>
-             <div className="w-6"></div> {/* Spacer */}
+             <div className="flex flex-col items-center md:items-start">
+                <span className="font-semibold text-sm text-gray-800">{currentSession?.title || '九鼎IT大模型'}</span>
+                {currentSession && (
+                   <span className="text-[10px] text-gray-400">接口: {currentSession.backendUrl}</span>
+                )}
+             </div>
+             <div className="w-6"></div>
         </div>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin pb-48">
-           {currentSession?.messages.length === 0 ? (
+           {!currentSession ? (
                <div className="h-full flex flex-col items-center justify-center text-center px-4 opacity-70 select-none">
-                    <div className="bg-gray-100 p-4 rounded-full mb-4 text-gray-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                    <div className="bg-blue-50 p-6 rounded-full mb-6 text-blue-500">
+                        <MessageSquare size={48} />
                     </div>
-                    <h2 className="text-2xl font-bold mb-2 text-gray-900">九鼎IT大模型语义层</h2>
-                    <p className="text-sm text-gray-500">开启“深度思考语义”以获取详细推导过程。</p>
+                    <h2 className="text-2xl font-bold mb-2">欢迎使用九鼎IT大模型</h2>
+                    <p className="text-sm text-gray-500">点击左侧“新建对话”开始体验不同模型接口</p>
                </div>
+           ) : currentSession.messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                    <h2 className="text-xl font-bold text-gray-400 mb-2">{currentSession.title}</h2>
+                    <p className="text-xs text-gray-400">当前对话已绑定特定接口，请在下方开始输入</p>
+                </div>
            ) : (
                <div className="flex flex-col pt-4">
-                 {currentSession?.messages.map((msg) => (
+                 {currentSession.messages.map((msg) => (
                    <MessageBubble key={msg.id} message={msg} />
                  ))}
-                 {/* Invisible element to scroll to */}
                  <div ref={messagesEndRef} className="h-4" />
                </div>
            )}
         </div>
         
-        <ChatInput onSend={handleSend} isLoading={isLoading} />
+        <ChatInput 
+          onSend={handleSend} 
+          isLoading={isLoading} 
+          interfaceType={currentSession?.interfaceType} 
+        />
       </main>
     </div>
   );

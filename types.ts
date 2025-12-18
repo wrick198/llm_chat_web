@@ -5,6 +5,12 @@ export enum Role {
   System = 'system'
 }
 
+export enum InterfaceType {
+  Semantic = 'semantic',
+  BSS30 = 'bss30',
+  API = 'api'
+}
+
 export interface Message {
   id: string;
   role: Role;
@@ -18,17 +24,18 @@ export interface ChatSession {
   title: string;
   messages: Message[];
   updatedAt: number;
+  interfaceType: InterfaceType;
+  backendUrl: string;
 }
 
 export interface ApiRequestPayload {
   text: string;
   enable_semantic_thinking: boolean;
-  enable_rag: boolean;
+  stream: boolean;
 }
 
-// Configuration for the backend connection
 export interface AppConfig {
   useCustomBackend: boolean;
-  backendUrl: string; // e.g., http://localhost:8000/stream
-  apiKey: string; // For Gemini
+  backendUrl: string; 
+  apiKey: string; 
 }

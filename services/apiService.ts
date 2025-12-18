@@ -1,36 +1,27 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { ApiRequestPayload, AppConfig, Role } from "../types";
-
-/**
- * This service handles the communication.
- * It supports two modes:
- * 1. Gemini API (Direct usage for demonstration/fallback)
- * 2. Custom Backend (Implements the specific JSON format requested by the user)
- */
+import { ApiRequestPayload, AppConfig } from "../types";
 
 export const streamChatResponse = async (
   payload: ApiRequestPayload,
   config: AppConfig,
+  customUrl: string,
   onChunk: (text: string) => void,
   onComplete: () => void,
   onError: (error: string) => void
 ) => {
   
-  // MODE 1: Custom Backend Implementation
   if (config.useCustomBackend) {
     try {
-      const response = await fetch(config.backendUrl, {
+      const response = await fetch(customUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        // Correctly sending the new payload structure: text, enable_semantic_thinking, enable_rag
         body: JSON.stringify(payload), 
       });
 
       if (!response.ok) {
-        // Try to read error text from backend if available
         const errorText = await response.text().catch(() => response.statusText);
         throw new Error(`后端请求失败 (${response.status}): ${errorText}`);
       }
@@ -54,52 +45,32 @@ export const streamChatResponse = async (
       onComplete();
 
     } catch (err) {
-      console.error("Custom Backend Error:", err);
-      onError(err instanceof Error ? err.message : "连接后端服务失败，请检查设置中的后端地址及服务状态。");
+      console.error("Backend Error:", err);
+      onError(err instanceof Error ? err.message : "连接后端服务失败。");
     }
     return;
   }
 
-  // MODE 2: Gemini API (Demo Mode)
+  // Gemini Demo Fallback
   try {
-    // Check for API Key
-    const apiKey = process.env.API_KEY || config.apiKey;
-    if (!apiKey) {
-        onError("缺少 API 密钥。请在设置中输入 Google Gemini API Key 或在 .env 文件中配置。");
-        return;
-    }
-
-    const ai = new GoogleGenAI({ apiKey });
+    // Correct initialization using process.env.API_KEY exclusively as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    // Simulate the flags by modifying the system prompt for the demo
-    let systemInstruction = "你是一个智能助手，负责解答用户的疑问。";
-    
-    if (payload.enable_semantic_thinking) {
-        systemInstruction += " 请务必在回答中提供详细的深度语义分析、推导过程以及相关逻辑依据，展现你的思维链。";
-    }
-    
-    if (payload.enable_rag) {
-        systemInstruction += " 请假设你正在使用外部知识库进行检索（虽然在Demo模式下没有连接真实数据库），请在回答中模拟引用外部文档或数据的语气。";
-    }
-
+    // Using gemini-3-flash-preview for general text tasks
     const streamResult = await ai.models.generateContentStream({
-      model: 'gemini-2.5-flash',
-      contents: [{ role: 'user', parts: [{ text: payload.text }] }],
+      model: 'gemini-3-flash-preview',
+      contents: payload.text,
       config: {
-        systemInstruction: systemInstruction
+        systemInstruction: payload.enable_semantic_thinking ? "请作为语义规范专家回答。" : "你是一个助手。"
       }
     });
 
     for await (const chunk of streamResult) {
-        const chunkText = chunk.text;
-        if (chunkText) {
-            onChunk(chunkText);
-        }
+        // Access chunk.text property directly, do not call it as a method
+        if (chunk.text) onChunk(chunk.text);
     }
     onComplete();
-
   } catch (err) {
-    console.error("Gemini API Error:", err);
-    onError(err instanceof Error ? err.message : "无法连接到 AI 服务，请检查网络或密钥。");
+    onError(err instanceof Error ? err.message : "AI 服务连接失败。");
   }
 };
