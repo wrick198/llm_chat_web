@@ -10,32 +10,52 @@ import { Message, Role, ChatSession, AppConfig, InterfaceType } from './types';
 import { streamChatResponse } from './services/apiService';
 
 const App: React.FC = () => {
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  // Lazy initialize sessions from localStorage to prevent overwriting on initial render
+  const [sessions, setSessions] = useState<ChatSession[]>(() => {
+    try {
+      const saved = localStorage.getItem('chat_sessions_v2');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Failed to load sessions:", e);
+      return [];
+    }
+  });
+
+  // Initialize currentSessionId based on the loaded sessions
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => {
+    try {
+        const saved = localStorage.getItem('chat_sessions_v2');
+        const parsed = saved ? JSON.parse(saved) : [];
+        return parsed.length > 0 ? parsed[0].id : null;
+    } catch {
+        return null;
+    }
+  });
+
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [config, setConfig] = useState<AppConfig>({
-    useCustomBackend: true,
-    backendUrl: '', // Will be overridden by session-specific URL
-    apiKey: '' 
+  // Lazy initialize config
+  const [config, setConfig] = useState<AppConfig>(() => {
+    try {
+        const saved = localStorage.getItem('chat_config_v2');
+        return saved ? JSON.parse(saved) : {
+            useCustomBackend: true,
+            backendUrl: '',
+            apiKey: ''
+        };
+    } catch {
+        return {
+            useCustomBackend: true,
+            backendUrl: '',
+            apiKey: ''
+        };
+    }
   });
 
-  useEffect(() => {
-    const savedSessions = localStorage.getItem('chat_sessions_v2');
-    const savedConfig = localStorage.getItem('chat_config_v2');
-    
-    if (savedConfig) setConfig(JSON.parse(savedConfig));
-
-    if (savedSessions) {
-      const parsed = JSON.parse(savedSessions);
-      setSessions(parsed);
-      if (parsed.length > 0) setCurrentSessionId(parsed[0].id);
-    }
-  }, []);
-
+  // Save to localStorage whenever sessions or config change
   useEffect(() => {
     localStorage.setItem('chat_sessions_v2', JSON.stringify(sessions));
     localStorage.setItem('chat_config_v2', JSON.stringify(config));
